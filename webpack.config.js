@@ -1,6 +1,8 @@
 const path = require("path");
 const webpack = require("webpack");
 const CssMinimizerPlugin = require("css-minimizer-webpack-plugin");
+const ClosurePlugin = require("closure-webpack-plugin");
+
 
 module.exports = {
   entry: "./tests/example.spec.js", // Path to your main JS file
@@ -8,13 +10,14 @@ module.exports = {
     new webpack.IgnorePlugin({
       resourceRegExp: /^(canvas)$/,
     }),
-    new webpack.ContextReplacementPlugin(
-      /playwright-core\/lib\/server\/registry/,
-      (data) => {
-        delete data.dependencies[0].critical;
-        return data;
-      }
-    ),
+    // ,
+    // new webpack.ContextReplacementPlugin(
+    //   /playwright-core\/lib\/server\/registry/,
+    //   (data) => {
+    //     delete data.dependencies[0].critical;
+    //     return data;
+    //   }
+    // ),
   ],
 
   output: {
@@ -90,7 +93,17 @@ module.exports = {
     minimize: true,
     minimizer: [
       "...", // This syntax extends existing minimizers (i.e., `terser-webpack-plugin`)
-      new CssMinimizerPlugin(),
+      // new CssMinimizerPlugin(),
+      new ClosurePlugin(
+        { mode: "STANDARD" },
+        {
+          // Compiler flags here
+          compilation_level: "ADVANCED",
+          language_in: "ECMASCRIPT_2015",
+          language_out: "ECMASCRIPT5_STRICT",
+          warning_level: "VERBOSE",
+        }
+      ),
     ],
   },
 };
