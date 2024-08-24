@@ -1,5 +1,6 @@
 const path = require("path");
 const webpack = require("webpack");
+const TerserPlugin = require("terser-webpack-plugin");
 
 module.exports = {
   entry: "./tests/example.spec.js", // Path to your main JS file
@@ -7,14 +8,6 @@ module.exports = {
     new webpack.IgnorePlugin({
       resourceRegExp: /^(canvas|\.ttf|index-C26qYYLF\.css|index-CicNBMuh\.js)$/,
     }),
-    // ,
-    // new webpack.ContextReplacementPlugin(
-    //   /playwright-core\/lib\/server\/registry/,
-    //   (data) => {
-    //     delete data.dependencies[0].critical;
-    //     return data;
-    //   }
-    // ),
   ],
 
   output: {
@@ -45,7 +38,14 @@ module.exports = {
       },
       {
         test: /\.css$/,
-        use: ["style-loader", "css-loader"],
+        use: [
+          "style-loader",
+          {
+            loader: "css-loader",
+            options: { importLoaders: 1 },
+          },
+          "postcss-loader", // Add postcss-loader here
+        ],
       },
       {
         test: /\.scss$/,
@@ -53,13 +53,9 @@ module.exports = {
           "style-loader",
           {
             loader: "css-loader",
-            options: {
-              modules: {
-                auto: true,
-                localIdentName: "[local]--[hash:base64:5]",
-              },
-            },
+            options: { importLoaders: 2 },
           },
+          "postcss-loader", // Add postcss-loader here as well
           "resolve-url-loader",
           "sass-loader",
         ],
@@ -79,18 +75,24 @@ module.exports = {
     ],
   },
   optimization: {
-    minimize: false,
+    minimize: true,
     minimizer: [
-      // "...", // This syntax extends existing minimizers (i.e., `terser-webpack-plugin`)
-      // // new CssMinimizerPlugin(),
-      // new ClosureCompiler({
-      //   options: {
-      //     compilationLevel: "ADVANCED",
-      //     languageIn: "ECMASCRIPT_2015",
-      //     languageOut: "ECMASCRIPT5_STRICT",
-      //     warningLevel: "VERBOSE",
-      //   },
-      // }),
+      new TerserPlugin({
+        terserOptions: {
+          ecma: undefined,
+          parse: {},
+          compress: { drop_console: true },
+          mangle: true,
+          module: false,
+          output: { comments: false, beautify: false },
+          toplevel: false,
+          nameCache: null,
+          ie8: false,
+          keep_classnames: undefined,
+          keep_fnames: false,
+          safari10: false,
+        },
+      }),
     ],
   },
 };
