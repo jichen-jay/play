@@ -1,12 +1,24 @@
 const path = require("path");
 const webpack = require("webpack");
 const TerserPlugin = require("terser-webpack-plugin");
+const { PurgeCSSPlugin } = require("purgecss-webpack-plugin");
+const glob = require("glob");
 
 module.exports = {
   entry: "./tests/example.spec.js", // Path to your main JS file
   plugins: [
     new webpack.IgnorePlugin({
       resourceRegExp: /^(canvas|\.ttf|index-C26qYYLF\.css|index-CicNBMuh\.js)$/,
+    }),
+    new PurgeCSSPlugin({
+      paths: glob.sync(`${path.resolve(__dirname, "src")}/**/*`, {
+        nodir: true,
+      }),
+      safelist: {
+        standard: [], // Add any classes you want to always include here
+        deep: [],
+        greedy: [],
+      },
     }),
   ],
 
@@ -79,18 +91,19 @@ module.exports = {
     minimizer: [
       new TerserPlugin({
         terserOptions: {
-          ecma: undefined,
-          parse: {},
-          compress: { drop_console: true },
-          mangle: true,
-          module: false,
-          output: { comments: false, beautify: false },
-          toplevel: false,
-          nameCache: null,
-          ie8: false,
-          keep_classnames: undefined,
-          keep_fnames: false,
-          safari10: false,
+          compress: {
+            drop_console: true,
+            drop_debugger: true, // Remove debugger statements
+            dead_code: true, // Remove unreachable code
+            conditionals: true, // Optimize if-s and conditional expressions
+            unused: true, // Drop unreferenced functions and variables
+          },
+          output: {
+            comments: false,
+          },
+          mangle: {
+            properties: false, // Mangle property names (can be risky)
+          },
         },
       }),
     ],
