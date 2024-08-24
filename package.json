@@ -9,9 +9,6 @@
   "description": "",
   "devDependencies": {
     "@types/node": "^22.5.0",
-    "closure-webpack-plugin": "^2.6.1",
-    "css-minimizer-webpack-plugin": "^7.0.0",
-    "google-closure-compiler": "^20240317.0.0",
     "html-loader": "^5.1.0",
     "node-loader": "^2.0.0",
     "svg-inline-loader": "^0.8.2",

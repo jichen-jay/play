@@ -1,14 +1,11 @@
 const path = require("path");
 const webpack = require("webpack");
-const CssMinimizerPlugin = require("css-minimizer-webpack-plugin");
-const ClosurePlugin = require("closure-webpack-plugin");
-
 
 module.exports = {
   entry: "./tests/example.spec.js", // Path to your main JS file
   plugins: [
     new webpack.IgnorePlugin({
-      resourceRegExp: /^(canvas)$/,
+      resourceRegExp: /^(canvas|\.ttf|index-C26qYYLF\.css|index-CicNBMuh\.js)$/,
     }),
     // ,
     // new webpack.ContextReplacementPlugin(
@@ -72,38 +69,28 @@ module.exports = {
         use: "svg-inline-loader",
       },
       {
-        test: /\.(png|jpg|gif|jpeg|ico|bmp|webp)$/,
+        test: /\.(png|gif|jpeg|ico|bmp|webp|jpe?g|svg|ttf|woff2?|woff|eot|otf)$/,
         type: "asset/resource", // Use asset modules for images
-      },
-      {
-        test: /\.(woff|woff2|eot|ttf|otf)$/,
-        type: "asset/resource", // Use asset modules for fonts
       },
       {
         test: /\.node$/,
         use: "node-loader",
       },
-      {
-        test: /\.(png|jpe?g|gif|svg|ttf|woff2?)$/,
-        type: "asset/resource",
-      },
     ],
   },
   optimization: {
-    minimize: true,
+    minimize: false,
     minimizer: [
-      "...", // This syntax extends existing minimizers (i.e., `terser-webpack-plugin`)
-      // new CssMinimizerPlugin(),
-      new ClosurePlugin(
-        { mode: "STANDARD" },
-        {
-          // Compiler flags here
-          compilation_level: "ADVANCED",
-          language_in: "ECMASCRIPT_2015",
-          language_out: "ECMASCRIPT5_STRICT",
-          warning_level: "VERBOSE",
-        }
-      ),
+      // "...", // This syntax extends existing minimizers (i.e., `terser-webpack-plugin`)
+      // // new CssMinimizerPlugin(),
+      // new ClosureCompiler({
+      //   options: {
+      //     compilationLevel: "ADVANCED",
+      //     languageIn: "ECMASCRIPT_2015",
+      //     languageOut: "ECMASCRIPT5_STRICT",
+      //     warningLevel: "VERBOSE",
+      //   },
+      // }),
     ],
   },
 };
