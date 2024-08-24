@@ -1,0 +1,29 @@
+{
+  "name": "play",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {},
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "devDependencies": {
+    "@types/node": "^22.5.0",
+    "html-loader": "^5.1.0",
+    "svg-inline-loader": "^0.8.2",
+    "webpack": "^5.94.0",
+    "webpack-cli": "^5.1.4"
+  },
+  "dependencies": {
+    "@mozilla/readability": "^0.5.0",
+    "bufferutil": "^4.0.8",
+    "canvas": "^2.11.2",
+    "css-loader": "^7.1.2",
+    "file-loader": "^6.2.0",
+    "jsdom": "^24.1.1",
+    "playwright": "^1.46.1",
+    "style-loader": "^4.0.0",
+    "url-loader": "^4.1.1",
+    "utf-8-validate": "^6.0.4"
+  }
+}
