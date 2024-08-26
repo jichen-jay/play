@@ -27,6 +27,7 @@
     "cssnano": "^7.0.5",
     "cssnano-preset-advanced": "^7.0.5",
     "file-loader": "^6.2.0",
+    "html-to-md": "^0.8.5",
     "jsdom": "^24.1.1",
     "playwright": "^1.46.1",
     "style-loader": "^4.0.0",

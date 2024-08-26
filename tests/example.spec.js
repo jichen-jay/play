@@ -3,6 +3,7 @@ const fs = require("fs");
 // const path = require("path");
 const { JSDOM } = require("jsdom");
 const Readability = require("@mozilla/readability").Readability;
+const html2md = require("html-to-md");
 
 const url = process.argv[2];
 
@@ -19,27 +20,29 @@ if (!url) {
   //want to open a tab, not a page
   const page = await defaultContext.newPage();
 
-  await page.goto(url);
+  await page.goto(url, { waitUntil: "networkidle" });
 
   const articleContent = await page.evaluate(() => {
     return document.documentElement.innerHTML; // Get full HTML content
   });
 
-  const dom = new JSDOM(articleContent, {
-    url: url,
-    contentType: "text/html",
-    includeNodeLocations: true,
-    storageQuota: 10000000,
-  });
+  // const dom = new JSDOM(articleContent, {
+  //   url: url,
+  //   contentType: "text/html",
+  //   includeNodeLocations: true,
+  //   storageQuota: 10000000,
+  // });
 
-  const article = new Readability(dom.window.document).parse();
+  // const article = new Readability(dom.window.document).parse();
 
-  if (article) {
+  //  if (article) {
+  if (true) {
     // const urlObject = new URL(url);
     // const authoritySegment = urlObject.hostname;
 
     // const markdownFilePath = path.join(__dirname, `output.md`);
-    fs.writeFileSync(`output.md`, article.content);
+    fs.writeFileSync(`output.md`, html2md(articleContent));
+    // fs.writeFileSync(`output.md`, article.content);
 
     // console.log(`Extracted content written to ${markdownFilePath}`);
   } else {
