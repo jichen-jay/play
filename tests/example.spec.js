@@ -1,56 +1,57 @@
-const { chromium } = require("playwright"); // Or 'firefox' or 'webkit'.
+const { chromium } = require("playwright");
 const fs = require("fs");
-// const path = require("path");
-const { JSDOM } = require("jsdom");
-const Readability = require("@mozilla/readability").Readability;
 const html2md = require("html-to-md");
+const net = require("net");
 
-const url = process.argv[2];
+const PORT = 4000; // Change to port 4000
+const END_OF_MESSAGE = "<END_OF_MESSAGE>";
+const server = net.createServer(async (socket) => {
+  socket.on("data", async (data) => {
+    const url = data.toString().trim();
+    console.log(`Processed URL: ${url}`);
 
-if (!url) {
-  console.error("Please provide a URL as a command line argument.");
-  process.exit(1);
-}
+    if (!url) {
+      socket.write("Please provide a valid URL.\n");
+      return;
+    }
 
-(async () => {
-  const browser = await chromium.connectOverCDP("http://localhost:9222");
+    try {
+      const browser = await chromium.connectOverCDP("http://localhost:9222");
+      const defaultContext = browser.contexts()[0];
+      const page = await defaultContext.newPage();
 
-  const defaultContext = browser.contexts()[0];
+      await Promise.race([
+        page.goto(url, { waitUntil: "domcontentloaded" }),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("Navigation timeout")), 3000)
+        ),
+      ]);
 
-  const page = await defaultContext.newPage();
+      const articleContent = await page.evaluate(
+        () => document.documentElement.innerHTML
+      );
+      const markdownContent = html2md(articleContent);
+      console.log(`HTML content obtained for URL: ${markdownContent}`);
 
-  //until networkidle or 12s
-  await page.goto(url, { waitUntil: "domcontentloaded" });
+      //want js code to send the content in one chunk,
+      socket.write(markdownContent + END_OF_MESSAGE);
 
-  const articleContent = await page.evaluate(() => {
-    return document.documentElement.innerHTML; // Get full HTML content
+      await page.close();
+    } catch (error) {
+      console.error("An error occurred:", error);
+      socket.write(`Error processing URL: ${error.message}\n`);
+    }
   });
 
-  // const dom = new JSDOM(articleContent, {
-  //   url: url,
-  //   contentType: "text/html",
-  //   includeNodeLocations: true,
-  //   storageQuota: 10000000,
-  // });
+  socket.on("end", () => {
+    console.log("Client disconnected");
+  });
 
-  // const article = new Readability(dom.window.document).parse();
+  socket.on("error", (err) => {
+    console.error(`Socket error: ${err.message}`);
+  });
+});
 
-  //  if (article) {
-  if (true) {
-    // const urlObject = new URL(url);
-    // const authoritySegment = urlObject.hostname;
-
-    // const markdownFilePath = path.join(__dirname, `output.md`);
-    fs.writeFileSync(`output.md`, html2md(articleContent));
-    // fs.writeFileSync(`output.md`, article.content);
-
-    // console.log(`Extracted content written to ${markdownFilePath}`);
-  } else {
-    console.error("Failed to extract article content.");
-  }
-
-  // want to close the tab opened above, but leave Chrome running, change the line
-  await page.close();
-
-  process.exit(0);
-})();
+server.listen(PORT, () => {
+  console.log(`Server listening on port ${PORT}`);
+});
