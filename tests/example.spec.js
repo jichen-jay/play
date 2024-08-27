@@ -1,57 +1,94 @@
 const { chromium } = require("playwright");
-const fs = require("fs");
 const html2md = require("html-to-md");
-const net = require("net");
+const http = require("http");
 
-const PORT = 4000; // Change to port 4000
+const PORT = 3000; // Change to port 3000
 const END_OF_MESSAGE = "<END_OF_MESSAGE>";
-const server = net.createServer(async (socket) => {
-  socket.on("data", async (data) => {
-    const url = data.toString().trim();
-    console.log(`Processed URL: ${url}`);
 
-    if (!url) {
-      socket.write("Please provide a valid URL.\n");
-      return;
-    }
+let browser;
+let defaultContext;
 
-    try {
-      const browser = await chromium.connectOverCDP("http://localhost:9222");
-      const defaultContext = browser.contexts()[0];
-      const page = await defaultContext.newPage();
+async function initializeBrowser() {
+  try {
+    browser = await chromium.connectOverCDP("http://localhost:9222");
+    defaultContext = browser.contexts()[0];
+    console.log("Connected to the browser.");
+  } catch (error) {
+    console.error("Failed to connect to the browser:", error);
+    process.exit(1);
+  }
+}
 
-      await Promise.race([
-        page.goto(url, { waitUntil: "domcontentloaded" }),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error("Navigation timeout")), 3000)
-        ),
-      ]);
+const server = http.createServer(async (req, res) => {
+  if (req.method === "POST" && req.url === "/scrape") {
+    let body = "";
 
-      const articleContent = await page.evaluate(
-        () => document.documentElement.innerHTML
-      );
-      const markdownContent = html2md(articleContent);
-      console.log(`HTML content obtained for URL: ${markdownContent}`);
+    req.on("data", (chunk) => {
+      body += chunk.toString();
+    });
 
-      //want js code to send the content in one chunk,
-      socket.write(markdownContent + END_OF_MESSAGE);
+    req.on("end", async () => {
+      try {
+        const { url } = JSON.parse(body);
 
-      await page.close();
-    } catch (error) {
-      console.error("An error occurred:", error);
-      socket.write(`Error processing URL: ${error.message}\n`);
-    }
-  });
+        if (!url) {
+          res.writeHead(400, { "Content-Type": "text/plain" });
+          res.end("Please provide a valid URL.\n");
+          return;
+        }
 
-  socket.on("end", () => {
-    console.log("Client disconnected");
-  });
+        console.log(`Processing URL: ${url}`);
 
-  socket.on("error", (err) => {
-    console.error(`Socket error: ${err.message}`);
-  });
+        const page = await defaultContext.newPage();
+
+        await Promise.race([
+          page.goto(url, { waitUntil: "domcontentloaded" }),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error("Navigation timeout")), 3000)
+          ),
+        ]);
+
+        const articleContent = await page.evaluate(
+          () => document.documentElement.innerHTML
+        );
+        const markdownContent = html2md(articleContent);
+        console.log(`HTML content obtained for URL: ${markdownContent}`);
+
+        // Send the content in one chunk
+        res.writeHead(200, { "Content-Type": "text/plain" });
+        res.end(markdownContent + END_OF_MESSAGE);
+
+        await page.close();
+      } catch (error) {
+        console.error("An error occurred:", error);
+        res.writeHead(500, { "Content-Type": "text/plain" });
+        res.end(`Error processing URL: ${error.message}\n`);
+      }
+    });
+
+    req.on("error", (err) => {
+      console.error(`Request error: ${err.message}`);
+      res.writeHead(500, { "Content-Type": "text/plain" });
+      res.end(`Request error: ${err.message}\n`);
+    });
+  } else {
+    res.writeHead(404, { "Content-Type": "text/plain" });
+    res.end("Not Found\n");
+  }
 });
 
-server.listen(PORT, () => {
+server.listen(PORT, async () => {
+  await initializeBrowser();
   console.log(`Server listening on port ${PORT}`);
+});
+
+// Handle process exit to close the browser connection gracefully
+process.on("exit", async () => {
+  if (browser) {
+    await browser.close();
+  }
+});
+
+process.on("SIGINT", async () => {
+  process.exit();
 });
