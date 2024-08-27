@@ -17,10 +17,10 @@ if (!url) {
 
   const defaultContext = browser.contexts()[0];
 
-  //want to open a tab, not a page
   const page = await defaultContext.newPage();
 
-  await page.goto(url, { waitUntil: "networkidle" });
+  //until networkidle or 12s
+  await page.goto(url, { waitUntil: "domcontentloaded" });
 
   const articleContent = await page.evaluate(() => {
     return document.documentElement.innerHTML; // Get full HTML content
