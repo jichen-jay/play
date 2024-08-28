@@ -39,7 +39,7 @@ const server = http.createServer(async (req, res) => {
 
     req.on("end", async () => {
       try {
-        const { url } = JSON.parse(body);
+        const { url, toMd } = JSON.parse(body);
 
         if (!url) {
           res.writeHead(400, { "Content-Type": "text/plain" });
@@ -62,27 +62,34 @@ const server = http.createServer(async (req, res) => {
         const articleContent = await page.evaluate(
           () => document.documentElement.innerHTML
         );
-        const dom = new JSDOM(articleContent, {
-          url: url,
-          contentType: "text/html",
-          includeNodeLocations: true,
-          storageQuota: 10000000,
-        });
 
-        const article = new Readability(dom.window.document, {
-          nbTopCandidates: 30,
-          charThreshold: 100,
-          keepClasses: true,
-        }).parse();
-        res.writeHead(200, { "Content-Type": "text/plain" });
-        res.end(
-          article.title +
-            "\n" +
-            article.byline +
-            "\n" +
-            article.content +
-            END_OF_MESSAGE
-        );
+        if (toMd) {
+          const markdownContent = NodeHtmlMarkdown.translate(articleContent);
+          res.writeHead(200, { "Content-Type": "text/plain" });
+          res.end(markdownContent + END_OF_MESSAGE);
+        } else {
+          const dom = new JSDOM(articleContent, {
+            url: url,
+            contentType: "text/html",
+            includeNodeLocations: true,
+            storageQuota: 10000000,
+          });
+
+          const article = new Readability(dom.window.document, {
+            nbTopCandidates: 30,
+            charThreshold: 100,
+            keepClasses: true,
+          }).parse();
+          res.writeHead(200, { "Content-Type": "text/plain" });
+          res.end(
+            article.title +
+              "\n" +
+              article.byline +
+              "\n" +
+              article.content +
+              END_OF_MESSAGE
+          );
+        }
 
         await page.close();
       } catch (error) {
