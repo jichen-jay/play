@@ -1,9 +1,15 @@
 const { chromium } = require("playwright");
 const html2md = require("html-to-md");
 const http = require("http");
-
+const {
+  NodeHtmlMarkdown,
+  NodeHtmlMarkdownOptions,
+} = require("node-html-markdown");
 const PORT = 3000; // Change to port 3000
 const END_OF_MESSAGE = "<END_OF_MESSAGE>";
+var TurndownService = require("turndown");
+
+var turndownService = new TurndownService();
 
 let browser;
 let defaultContext;
@@ -51,7 +57,10 @@ const server = http.createServer(async (req, res) => {
         const articleContent = await page.evaluate(
           () => document.documentElement.innerHTML
         );
-        const markdownContent = html2md(articleContent);
+        // const markdownContent = html2md(articleContent);
+
+        const markdownContent = NodeHtmlMarkdown.translate(articleContent);
+        // const markdownContent = turndownService.turndown(articleContent);
         console.log(`HTML content obtained for URL: ${markdownContent}`);
 
         // Send the content in one chunk
