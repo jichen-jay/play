@@ -1,10 +1,14 @@
 const { chromium } = require("playwright");
 const html2md = require("html-to-md");
 const http = require("http");
+const { JSDOM } = require("jsdom");
 const {
   NodeHtmlMarkdown,
   NodeHtmlMarkdownOptions,
 } = require("node-html-markdown");
+
+const Readability = require("@mozilla/readability").Readability;
+
 const PORT = 3000; // Change to port 3000
 const END_OF_MESSAGE = "<END_OF_MESSAGE>";
 var TurndownService = require("turndown");
@@ -48,24 +52,37 @@ const server = http.createServer(async (req, res) => {
         const page = await defaultContext.newPage();
 
         await Promise.race([
-          page.goto(url, { waitUntil: "domcontentloaded" }),
+          page.goto(url, { waitUntil: "load" }),
+          // page.goto(url, { waitUntil: "domcontentloaded" }),
           new Promise((_, reject) =>
-            setTimeout(() => reject(new Error("Navigation timeout")), 3000)
+            setTimeout(() => reject(new Error("Navigation timeout")), 10000)
           ),
         ]);
 
         const articleContent = await page.evaluate(
           () => document.documentElement.innerHTML
         );
-        // const markdownContent = html2md(articleContent);
+        const dom = new JSDOM(articleContent, {
+          url: url,
+          contentType: "text/html",
+          includeNodeLocations: true,
+          storageQuota: 10000000,
+        });
 
-        const markdownContent = NodeHtmlMarkdown.translate(articleContent);
-        // const markdownContent = turndownService.turndown(articleContent);
-        console.log(`HTML content obtained for URL: ${markdownContent}`);
-
-        // Send the content in one chunk
+        const article = new Readability(dom.window.document, {
+          nbTopCandidates: 30,
+          charThreshold: 100,
+          keepClasses: true,
+        }).parse();
         res.writeHead(200, { "Content-Type": "text/plain" });
-        res.end(markdownContent + END_OF_MESSAGE);
+        res.end(
+          article.title +
+            "\n" +
+            article.byline +
+            "\n" +
+            article.content +
+            END_OF_MESSAGE
+        );
 
         await page.close();
       } catch (error) {
