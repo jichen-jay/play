@@ -9,9 +9,6 @@ const {
 } = require("node-html-markdown");
 
 const Readability = require("@mozilla/readability").Readability;
-const CognitiveServicesCredentials =
-  require("ms-rest-azure").CognitiveServicesCredentials;
-const WebSearchAPIClient = require("azure-cognitiveservices-websearch");
 
 const PORT = 3000; // Change to port 3000
 var TurndownService = require("turndown");
@@ -275,7 +272,7 @@ function bingWebSearch(query) {
   });
 }
 
-const query = "find the cheapest motherboard with 670 chipsets";
+const query = "where can I find a cheap Intel Arc 770 GPU";
 
 bingWebSearch(query)
   .then(async ({ webPagesUrls, newsUrls }) => {

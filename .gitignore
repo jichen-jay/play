@@ -7,3 +7,4 @@ output.md
 package-lock.json
 bundle.js
 .env
+pnpm-lock.yaml
