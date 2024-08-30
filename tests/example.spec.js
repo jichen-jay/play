@@ -86,11 +86,13 @@ async function openMultipleTabs(urls, toMd) {
               keepClasses: true,
             }).parse();
 
-            const cleaned = turndownService.turndown(article.content);
-            return {
-              url,
-              content: article.title + "\n" + article.byline + "\n" + cleaned,
-            };
+            if (article && article.content) {
+              const cleaned = turndownService.turndown(article.content);
+              return {
+                url,
+                content: article.title + "\n" + article.byline + "\n" + cleaned,
+              };
+            }
           }
         } catch (err) {
           console.error(`Error processing ${url}:`, err);
@@ -181,20 +183,36 @@ async function callTogether(query, webText) {
         {
           role: "system",
           content:
-            "You're AI text processing agent. You're tasked to analyze internet search query and the search engine returned webpage text",
+            "You're an AI text processing agent. You're tasked to analyze an internet search query and the search engine returned webpage text.",
         },
         {
           role: "user",
-          content: `Given the query "${query}", list your findings from the text concisely, and your confidence number, avoid any boilerplate, don't explain anything: ${webText}`,
+          content: `Given the query "${query}", focus on information that matches verbatim with keywords in the query in the source text. List your findings most relevant to the query from the text concisely, and your confidence number. Reply in strictly formed JSON: { "findings": "your findings", "confidence": confidence score as a Float number }, don't explain anything: ${webText}`,
         },
       ],
     });
-    const ans = completion.choices[0]?.message.content;
-    console.log(ans);
-    return ans;
+
+    const ans = completion.choices[0]?.message.content.trim();
+
+    if (ans) {
+      let parsedAns;
+      try {
+        parsedAns = JSON.parse(ans);
+      } catch (parseError) {
+        console.error("Failed to parse JSON:", parseError);
+        return null;
+      }
+
+      if (parsedAns.confidence > 0.9) {
+        console.log(parsedAns);
+        return parsedAns.findings;
+      }
+    }
   } catch (error) {
     console.error("Failed to call together:", error);
   }
+
+  return null; // Return null if no valid answer is found
 }
 
 async function finalAnswer(query, ansArrayText) {
@@ -272,7 +290,7 @@ function bingWebSearch(query) {
   });
 }
 
-const query = "where can I find a cheap Intel Arc 770 GPU";
+const query = "how much does 1kg pork cost in Canada";
 
 bingWebSearch(query)
   .then(async ({ webPagesUrls, newsUrls }) => {
@@ -283,16 +301,24 @@ bingWebSearch(query)
     var ansArrayText = "";
 
     if (Array.isArray(scrapedArray)) {
-      for (const { url, content: webText } of scrapedArray) {
-        const tex = await callTogether(query, webText);
+      for (const item of scrapedArray) {
+        if (!item || !item.url || !item.content) {
+          continue;
+        }
 
-        ansArrayText += tex;
+        const { url, content: webText } = item;
+
+        const tex = await callTogether(query, webText);
+        if (tex) {
+          console.log(tex);
+          ansArrayText += tex + "\n";
+        }
       }
     } else {
       console.error("scrapedArray is not an array:", scrapedArray);
     }
 
-    finalAnswer(ansArrayText);
+    finalAnswer(query, ansArrayText);
     console.log("News URLs:", newsUrls);
   })
   .catch((err) => {
