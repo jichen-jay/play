@@ -1,35 +1,25 @@
 import { Readability } from "https://cdn.jsdelivr.net/npm/@mozilla/readability@0.5.0/+esm";
-import html2md from "https://cdn.jsdelivr.net/npm/html-to-md@0.8.5/+esm"; // Use a CDN for html-to-md
-import TurndownService from "https://cdn.jsdelivr.net/npm/turndown@7.2.0/+esm";
 import { JSDOM } from "npm:jsdom";
-import puppeteer from "https://deno.land/x/puppeteer_plus/mod.ts";
+// import puppeteer from "https://deno.land/x/puppeteer_plus/mod.ts";
 import { NodeHtmlMarkdown } from "npm:node-html-markdown";
+import { chromium } from "npm:playwright";
 
-import markdownit from "npm:markdown-it";
-
-const md = markdownit({
-  html: true, // Enable HTML tags in source
-  xhtmlOut: true,
-  breaks: true,
-  linkify: true,
-  typographer: true,
-}).disable(["image"]);
-
-let browser;
-let defaultContext;
+const customTranslators = {
+  path: (node) => `~${node.textContent}~`,
+  meta: (node) => `~${node.textContent}~`,
+  picture: (node) => `~${node.textContent}~`,
+};
 
 async function initializeBrowser() {
-  try {
-    browser = await puppeteer.launch({
-      headless: false,
-      executablePath: "/snap/bin/chromium",
-    });
-    defaultContext = browser.defaultBrowserContext();
-    console.log("Connected to the browser.");
-  } catch (error) {
-    console.error("Failed to connect to the browser:", error);
-  }
+  const userDataDir = "/home/jaykchen/.config/google-chrome";
+  const context = await chromium.launchPersistentContext(userDataDir, {
+    headless: false,
+    javaScriptEnabled: true,
+    executablePath: "/usr/bin/google-chrome",
+  });
+  return context;
 }
+const defaultContext = await initializeBrowser();
 
 async function openMultipleTabs(urls, toMd) {
   const TIMEOUT = 12000; // 12 seconds timeout
@@ -91,37 +81,13 @@ async function openMultipleTabs(urls, toMd) {
 
     const results = await Promise.all(
       pages.map(async ({ tex, htm, url }) => {
-        // the following block work in previous iteration, it handled content as dom object
-        // try {
-        //   const markdownContent = NodeHtmlMarkdown.translate(content);
-        //   return {
-        //     url,
-        //     content: markdownContent,
-        //   };
-        // } catch (err) {
-        //   console.error(`Error processing ${url}:`, err);
-        //   return { url, content: null, error: err.message };
-        // }
-        // const turndownService = new TurndownService();
+        const nhm = new NodeHtmlMarkdown(
+          {}, // options
+          customTranslators // customTransformers
+        );
+        const markdownOutput = nhm.translate(htm);
 
-        // turndownService.addRule("strikethrough", {
-        //   filter: ["path", "meta", "picture"],
-        //   replacement: function (content) {
-        //     return "~" + content + "~";
-        //   },
-        // });
-
-        // const dom = new JSDOM(htm);
-
-        // const cleaned = turndownService.turndown(
-        //   dom.window.document.body.innerHTML
-        // );
-
-        const cleaned = md.render(htm);
-        // console.log("Readability_with_link_sections:\n\n");
-        console.log(cleaned);
-
-        // this block doesn't work, it didn't recognize the dom object
+        console.log(markdownOutput);
         try {
           // return {
           //   url,
