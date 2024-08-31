@@ -7,6 +7,7 @@ import { config } from "https://deno.land/x/dotenv/mod.ts";
 import { assert } from "jsr:@std/assert@1";
 import { JSDOM } from "npm:jsdom";
 import puppeteer from "https://deno.land/x/puppeteer_plus/mod.ts";
+import { NodeHtmlMarkdown } from "npm:node-html-markdown";
 let browser;
 let defaultContext;
 
@@ -17,11 +18,10 @@ async function initializeBrowser() {
       userDataDir: "/home/jaykchen/.config/google-chrome",
       executablePath: "/usr/bin/google-chrome",
     });
-    defaultContext = await browser.defaultBrowserContext();
+    defaultContext = browser.defaultBrowserContext();
     console.log("Connected to the browser.");
   } catch (error) {
     console.error("Failed to connect to the browser:", error);
-    Deno.exit(1);
   }
 }
 
@@ -32,10 +32,31 @@ async function openMultipleTabs(urls, toMd) {
     const pages = await Promise.all(
       urls.map(async (url) => {
         const page = await defaultContext.newPage();
-        let content;
+        let tex;
+        let htm;
+
         try {
           await page.goto(url, { waitUntil: "load", timeout: TIMEOUT });
-          content = page.content();
+
+          await page.evaluate(() => {
+            window.stop(); // Stop any further loading of resources
+          });
+
+          ({ tex, htm } = await page.evaluate(() => {
+            return {
+              tex: document.documentElement.innerText,
+              htm: document,
+            };
+          }));
+
+          const dom = new JSDOM(htm, {
+            nbTopCandidates: 30,
+            charThreshold: 100,
+            keepClasses: false,
+          });
+          const article = new Readability(dom.window.document).parse();
+
+          console.log(article.content);
         } catch (error) {
           if (error.name === "TimeoutError") {
             console.warn(`Navigation timeout for ${url}.`);
@@ -43,71 +64,50 @@ async function openMultipleTabs(urls, toMd) {
             throw error;
           }
         } finally {
-          await page.evaluate(() => {
-            window.stop();
-            content = page.content();
-          });
+          await page.close(); // Close the page after processing
         }
-        return { conten, url };
+        return { tex, htm, url };
       })
     );
+
     const results = await Promise.all(
-      pages.map(async ({ page, url }) => {
+      pages.map(async ({ tex, htm, url }) => {
         try {
-          const articleContent = page;
-          const dom = new JSDOM(articleContent, {
-            url: url,
-            contentType: "text/html",
-            includeNodeLocations: true,
-            storageQuota: 10000000,
-          });
-          if (!dom) {
-            throw new Error("Failed to parse document");
-          }
-          const turndownService = new TurndownService({
-            headingStyle: "atx",
-            codeBlockStyle: "fenced",
-          });
-
-          turndownService.dom = dom.window.document;
-          const cleaned = turndownService.turndown(articleContent);
-
-          return {
-            url,
-            content: cleaned,
-          };
-          // content: article.title + "\n" + article.byline + "\n" + cleaned,
-
-          // if (toMd) {
-          //   const markdownContent = NodeHtmlMarkdown.translate(articleContent);
-          //   return { url, content: markdownContent };
-          // } else {
-          //   const article = new Readability(dom.window.document, {
-          //     nbTopCandidates: 30,
-          //     charThreshold: 100,
-          //     keepClasses: true,
-          //   }).parse();
-
-          //   if (article && article.content) {
-          //     const turndownService = new TurndownService({
-          //       headingStyle: "atx",
-          //       codeBlockStyle: "fenced",
-          //     });
-
-          //     // turndownService.dom = dom.window.document;
-          //     const cleaned = turndownService.turndown(articleContent);
-
-          //     return {
-          //       url,
-          //       content: article.title + "\n" + article.byline + "\n" + cleaned,
-          //     };
-          //   }
+          // console.log("text\n");
+          // console.log(tex);
+          // console.log("htm\n\n");
+          // console.log(htm);
+          // console.log("dm\n\n\n");
+          // console.log(markdown);
+          //   const markdownContent = NodeHtmlMarkdown.translate(htm);
+          //   console.log(markdownContent);
+          // } catch (err) {
+          //   console.error(`Error processing ${url}:`, err);
           // }
+          // const dom = new JSDOM(dm, {
+          //   url: url,
+          //   contentType: "text/html",
+          //   includeNodeLocations: true,
+          //   storageQuota: 10000000,
+          // });
+          // if (!dom) {
+          //   throw new Error("Failed to parse document");
+          // }
+          // const turndownService = new TurndownService();
+          // const cleaned = turndownService.turndown(dom);
+          // console.log(cleaned);
+          // const article = new Readability(dom.window.document, {
+          //   nbTopCandidates: 30,
+          //   charThreshold: 100,
+          //   keepClasses: true,
+          // }).parse();
+          // console.log(article.content);
+          // content: article.title + "\n" + article.byline + "\n" + cleaned,
         } catch (err) {
           console.error(`Error processing ${url}:`, err);
           return { url, content: null, error: err.message };
         } finally {
-          await page.close();
+          // await page.close();
         }
       })
     );
@@ -216,13 +216,13 @@ async function bingWebSearch(query) {
 
     if (jsonResponse.webPages && jsonResponse.webPages.value) {
       webPagesUrls.push(
-        ...jsonResponse.webPages.value.slice(0, 5).map((item) => item.url)
+        ...jsonResponse.webPages.value.slice(0, 1).map((item) => item.url)
       );
     }
 
     if (jsonResponse.news && jsonResponse.news.value) {
       newsUrls.push(
-        ...jsonResponse.news.value.slice(0, 5).map((item) => item.url)
+        ...jsonResponse.news.value.slice(0, 1).map((item) => item.url)
       );
     }
 
@@ -233,7 +233,7 @@ async function bingWebSearch(query) {
   }
 }
 
-const query = "how much does 1kg pork cost in Canada";
+const query = "go get text on http://example.com/";
 
 bingWebSearch(query)
   .then(async ({ webPagesUrls, newsUrls }) => {

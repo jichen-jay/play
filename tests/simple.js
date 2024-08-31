@@ -1,6 +1,9 @@
-import puppeteer from "https://deno.land/x/puppeteer@16.2.0/mod.ts";
-// import { NodeHtmlMarkdown } from "npm:node-html-markdown";
+import { Readability } from "https://cdn.jsdelivr.net/npm/@mozilla/readability@0.5.0/+esm";
+import html2md from "https://cdn.jsdelivr.net/npm/html-to-md@0.8.5/+esm"; // Use a CDN for html-to-md
 import TurndownService from "https://cdn.jsdelivr.net/npm/turndown@7.2.0/+esm";
+import { JSDOM } from "npm:jsdom";
+import puppeteer from "https://deno.land/x/puppeteer_plus/mod.ts";
+import { NodeHtmlMarkdown } from "npm:node-html-markdown";
 let browser;
 let defaultContext;
 
@@ -8,8 +11,7 @@ async function initializeBrowser() {
   try {
     browser = await puppeteer.launch({
       headless: false,
-      userDataDir: "/home/jaykchen/.config/google-chrome",
-      executablePath: "/usr/bin/google-chrome",
+      executablePath: "/snap/bin/chromium",
     });
     defaultContext = browser.defaultBrowserContext();
     console.log("Connected to the browser.");
@@ -25,7 +27,9 @@ async function openMultipleTabs(urls, toMd) {
     const pages = await Promise.all(
       urls.map(async (url) => {
         const page = await defaultContext.newPage();
-        let content;
+        let tex;
+        let htm;
+
         try {
           await page.goto(url, { waitUntil: "load", timeout: TIMEOUT });
 
@@ -33,9 +37,34 @@ async function openMultipleTabs(urls, toMd) {
             window.stop(); // Stop any further loading of resources
           });
 
-          content = await page.evaluate(() => {
-            return document.documentElement.outerHTML;
+          ({ tex, htm } = await page.evaluate(() => {
+            var a = document.documentElement.innerText;
+            var b = document.documentElement.outerHTML;
+
+            return {
+              tex: a,
+              htm: b,
+            };
+          }));
+
+          const dom = new JSDOM(htm, {
+            url: url,
+            content: "text/html",
           });
+
+          const article = new Readability(dom.window.document, {
+            nbTopCandidates: 30,
+            charThreshold: 100,
+            keepClasses: true,
+          }).parse();
+
+          tex = article.textContent.trim();
+
+          htm = article.content;
+          // console.log(article.content);
+
+          // console.log("Readability_text:");
+          // console.log(tex);
         } catch (error) {
           if (error.name === "TimeoutError") {
             console.warn(`Navigation timeout for ${url}.`);
@@ -45,12 +74,12 @@ async function openMultipleTabs(urls, toMd) {
         } finally {
           await page.close(); // Close the page after processing
         }
-        return { content, url };
+        return { tex, htm, url };
       })
     );
 
     const results = await Promise.all(
-      pages.map(async ({ content, url }) => {
+      pages.map(async ({ tex, htm, url }) => {
         // the following block work in previous iteration, it handled content as dom object
         // try {
         //   const markdownContent = NodeHtmlMarkdown.translate(content);
@@ -62,15 +91,30 @@ async function openMultipleTabs(urls, toMd) {
         //   console.error(`Error processing ${url}:`, err);
         //   return { url, content: null, error: err.message };
         // }
+        const turndownService = new TurndownService();
+
+        turndownService.addRule("strikethrough", {
+          filter: ["path", "meta", "picture"],
+          replacement: function (content) {
+            return "~" + content + "~";
+          },
+        });
+
+        const dom = new JSDOM(htm);
+
+        const cleaned = turndownService.turndown(
+          dom.window.document.body.innerHTML
+        );
+
+        // console.log("Readability_with_link_sections:\n\n");
+        console.log(cleaned);
 
         // this block doesn't work, it didn't recognize the dom object
         try {
-          const turndownService = new TurndownService();
-          const cleaned = turndownService.turndown(content);
-          return {
-            url,
-            content: cleaned,
-          };
+          // return {
+          //   url,
+          //   content: cleaned,
+          // };
         } catch (err) {
           console.error(`Error processing ${url}:`, err);
           return { url, content: null, error: err.message };
@@ -88,12 +132,9 @@ async function openMultipleTabs(urls, toMd) {
 await initializeBrowser();
 
 const urls = [
-  "https://www.selinawamucii.com/insights/prices/canada/pork/",
-  "https://www.ontariopork.on.ca/Price-Reporting/Price-Calculation",
-  "https://www.ontariopork.on.ca/Price-Report/Daily-Market-Outlook",
-  "https://www.ontariopork.on.ca/Price-Report",
   "https://agriculture.canada.ca/en/sector/animal-industry/red-meat-and-livestock-market-information/prices",
 ];
 
 const results = await openMultipleTabs(urls, true);
 console.log(results);
+// "https://www.ontariopork.on.ca/Price-Report",
