@@ -1,7 +1,6 @@
 {
   "name": "play",
   "version": "1.0.0",
-  "main": "index.js",
   "scripts": {
     "build": "rsbuild build"
   },
@@ -9,6 +8,7 @@
   "author": "",
   "license": "ISC",
   "description": "",
+  "type": "module",
   "devDependencies": {
     "@rollup/plugin-alias": "^5.1.0",
     "@rollup/plugin-commonjs": "^26.0.1",

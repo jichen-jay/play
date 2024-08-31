@@ -1,19 +1,19 @@
-const { chromium } = require("playwright");
-const html2md = require("html-to-md");
-const http = require("http");
-const https = require("https");
-const { JSDOM, VirtualConsole } = require("jsdom");
-const {
-  NodeHtmlMarkdown,
-  NodeHtmlMarkdownOptions,
-} = require("node-html-markdown");
+import { chromium } from "playwright";
+import html2md from "html-to-md";
+import http from "http";
+import https from "https";
+import { JSDOM, VirtualConsole } from "jsdom";
+import { Readability } from "@mozilla/readability";
+import TurndownService from "turndown";
+import { Together } from "together-ai";
 
-const Readability = require("@mozilla/readability").Readability;
+import nhm from "node-html-markdown";
+const { NodeHtmlMarkdown, NodeHtmlMarkdownOptions } = nhm;
 
 const PORT = 3000; // Change to port 3000
-var TurndownService = require("turndown");
 
-var turndownService = new TurndownService();
+const turndownService = new TurndownService();
+
 turndownService.addRule("strikethrough", {
   filter: ["path", "meta", "picture", "svg"],
   replacement: function (content) {
@@ -63,37 +63,29 @@ async function openMultipleTabs(urls, toMd) {
       pages.map(async ({ page, url }) => {
         try {
           const articleContent = await page.content();
+          const virtualConsole = new VirtualConsole();
+          const dom = new JSDOM(articleContent, {
+            url,
+            contentType: "text/html",
+            includeNodeLocations: true,
+            storageQuota: 10000000,
+            virtualConsole,
+          });
+          const article = new Readability(dom.window.document, {
+            nbTopCandidates: 30,
+            charThreshold: 50,
+            keepClasses: true,
+          }).parse();
+          const newDom = new JSDOM(article.content, {
+            url: url,
+            content: "text/html",
+          });
+          const cleaned = turndownService.turndown(
+            newDom.window.document.body.innerHTML
+          );
 
-          if (toMd) {
-            const markdownContent = NodeHtmlMarkdown.translate(articleContent);
-            return { url, content: markdownContent };
-          } else {
-            const virtualConsole = new VirtualConsole();
-            virtualConsole.on("error", () => {
-              // No-op to skip console errors.
-            });
-            const dom = new JSDOM(articleContent, {
-              url,
-              contentType: "text/html",
-              includeNodeLocations: true,
-              storageQuota: 10000000,
-              virtualConsole,
-            });
-
-            const article = new Readability(dom.window.document, {
-              nbTopCandidates: 30,
-              charThreshold: 100,
-              keepClasses: true,
-            }).parse();
-
-            if (article && article.content) {
-              const cleaned = turndownService.turndown(article.content);
-              return {
-                url,
-                content: article.title + "\n" + article.byline + "\n" + cleaned,
-              };
-            }
-          }
+          // console.log("Readability_with_link_sections:\n\n");
+          console.log(cleaned);
         } catch (err) {
           console.error(`Error processing ${url}:`, err);
           return { url, content: null, error: err.message };
@@ -169,11 +161,9 @@ initializeBrowser();
 //   process.exit();
 // });
 
-const Together = require("together-ai");
-require("dotenv").config();
-const together = new Together({
-  apiKey: process.env["TOGETHER_API_KEY"],
-});
+// const together = new Together({
+//   apiKey: process.env["TOGETHER_API_KEY"],
+// });
 
 async function callTogether(query, webText) {
   try {
@@ -292,36 +282,47 @@ function bingWebSearch(query) {
 
 const query = "how much does 1kg pork cost in Canada";
 
-bingWebSearch(query)
-  .then(async ({ webPagesUrls, newsUrls }) => {
-    console.log("Web Pages URLs:", webPagesUrls);
+// bingWebSearch(query)
+//   .then(async ({ webPagesUrls, newsUrls }) => {
+//     console.log("Web Pages URLs:", webPagesUrls);
 
-    const scrapedArray = await openMultipleTabs(webPagesUrls, "");
+//     const scrapedArray = await openMultipleTabs(webPagesUrls, "");
 
-    var ansArrayText = "";
+//     var ansArrayText = "";
 
-    if (Array.isArray(scrapedArray)) {
-      for (const item of scrapedArray) {
-        if (!item || !item.url || !item.content) {
-          continue;
-        }
+//     if (Array.isArray(scrapedArray)) {
+//       for (const item of scrapedArray) {
+//         if (!item || !item.url || !item.content) {
+//           continue;
+//         }
 
-        const { url, content: webText } = item;
+//         const { url, content: webText } = item;
 
-        const tex = await callTogether(query, webText);
-        if (tex) {
-          console.log(tex);
-          ansArrayText += tex + "\n";
-        }
-      }
-    } else {
-      console.error("scrapedArray is not an array:", scrapedArray);
-    }
+//         const tex = await callTogether(query, webText);
+//         if (tex) {
+//           console.log(tex);
+//           ansArrayText += tex + "\n";
+//         }
+//       }
+//     } else {
+//       console.error("scrapedArray is not an array:", scrapedArray);
+//     }
 
-    finalAnswer(query, ansArrayText);
-    console.log("News URLs:", newsUrls);
-  })
-  .catch((err) => {
-    console.error(err);
-  });
-  
+//     finalAnswer(query, ansArrayText);
+//     console.log("News URLs:", newsUrls);
+//   })
+//   .catch((err) => {
+//     console.error(err);
+//   });
+
+const urls = [
+  "https://agriculture.canada.ca/en/sector/animal-industry/red-meat-and-livestock-market-information/prices",
+];
+
+(async () => {
+  await initializeBrowser();
+
+  const results = await openMultipleTabs(urls, true);
+
+  console.log(results);
+})();
