@@ -1,8 +1,7 @@
 import { Readability } from "https://cdn.jsdelivr.net/npm/@mozilla/readability@0.5.0/+esm";
 import { JSDOM } from "npm:jsdom";
-// import puppeteer from "https://deno.land/x/puppeteer_plus/mod.ts";
+import puppeteer from "https://deno.land/x/puppeteer_plus/mod.ts";
 import { NodeHtmlMarkdown } from "npm:node-html-markdown";
-import { chromium } from "npm:playwright";
 
 const customTranslators = {
   path: (node) => `~${node.textContent}~`,
@@ -11,91 +10,74 @@ const customTranslators = {
 };
 
 async function initializeBrowser() {
-  const userDataDir = "/home/jaykchen/.config/google-chrome";
-  const context = await chromium.launchPersistentContext(userDataDir, {
-    headless: false,
-    javaScriptEnabled: true,
-    executablePath: "/usr/bin/google-chrome",
-  });
-  return context;
+  try {
+    const browser = await puppeteer.launch({
+      headless: true, // Use headless mode for better performance
+      executablePath: "/snap/bin/chromium",
+    });
+    console.log("Connected to the browser.");
+    return browser;
+  } catch (error) {
+    console.error("Failed to connect to the browser:", error);
+    throw error;
+  }
 }
-const defaultContext = await initializeBrowser();
-
-async function openMultipleTabs(urls, toMd) {
+async function processPage(page, url) {
   const TIMEOUT = 12000; // 12 seconds timeout
 
   try {
-    const pages = await Promise.all(
-      urls.map(async (url) => {
-        const page = await defaultContext.newPage();
-        let tex;
-        let htm;
+    await page.goto(url, { waitUntil: "load", timeout: TIMEOUT });
+    await page.evaluate(() => window.stop()); // Stop any further loading of resources
 
-        try {
-          await page.goto(url, { waitUntil: "load", timeout: TIMEOUT });
+    const { tex, htm } = await page.evaluate(() => ({
+      tex: document.documentElement.innerText,
+      htm: document.documentElement.outerHTML,
+    }));
 
-          await page.evaluate(() => {
-            window.stop(); // Stop any further loading of resources
-          });
+    const dom = new JSDOM(htm, { url, contentType: "text/html" });
+    const article = new Readability(dom.window.document).parse();
 
-          ({ tex, htm } = await page.evaluate(() => {
-            var a = document.documentElement.innerText;
-            var b = document.documentElement.outerHTML;
+    if (article) {
+      const title = article.title || "No Title";
+      const byline = article.byline || "No Byline";
+      const content = article.content || "No Content";
+      const textContent = article.textContent.trim() || "No Text Content";
 
-            return {
-              tex: a,
-              htm: b,
-            };
-          }));
+      return {
+        tex: `${title}\n${byline}\n${textContent}`,
+        htm: `${title}\n${byline}\n${content}`,
+        url,
+      };
+    } else {
+      return { tex, htm, url };
+    }
+  } catch (error) {
+    if (error.name === "TimeoutError") {
+      console.warn(`Navigation timeout for ${url}.`);
+      return { url, tex: null, htm: null };
+    }
+    throw error;
+  }
+}
 
-          const dom = new JSDOM(htm, {
-            url: url,
-            content: "text/html",
-          });
+async function openMultipleTabs(browser, urls) {
+  const context = browser.defaultBrowserContext();
 
-          const article = new Readability(dom.window.document, {
-            nbTopCandidates: 30,
-            charThreshold: 100,
-            keepClasses: true,
-          }).parse();
-
-          tex = article.textContent.trim();
-
-          htm = article.content;
-          // console.log(article.content);
-
-          // console.log("Readability_text:");
-          // console.log(tex);
-        } catch (error) {
-          if (error.name === "TimeoutError") {
-            console.warn(`Navigation timeout for ${url}.`);
-          } else {
-            throw error;
-          }
-        } finally {
-          await page.close(); // Close the page after processing
-        }
-        return { tex, htm, url };
-      })
-    );
-
+  try {
     const results = await Promise.all(
-      pages.map(async ({ tex, htm, url }) => {
-        const nhm = new NodeHtmlMarkdown(
-          {}, // options
-          customTranslators // customTransformers
-        );
-        const markdownOutput = nhm.translate(htm);
-
-        console.log(markdownOutput);
+      urls.map(async (url) => {
+        const page = await context.newPage();
         try {
-          // return {
-          //   url,
-          //   content: cleaned,
-          // };
+          const { tex, htm } = await processPage(page, url);
+          const nhm = new NodeHtmlMarkdown({}, customTranslators);
+          const markdownOutput = nhm.translate(htm);
+
+          return { url, readahText: tex, readahMd: markdownOutput };
         } catch (err) {
           console.error(`Error processing ${url}:`, err);
           return { url, content: null, error: err.message };
+        } finally {
+          await page.close();
         }
       })
     );
@@ -107,10 +89,15 @@ async function openMultipleTabs(urls, toMd) {
   }
 }
 
-await initializeBrowser();
+(async () => {
+  const browser = await initializeBrowser();
 
-const urls = ["https://www.selinawamucii.com/insights/prices/canada/pork/"];
+  try {
+    const urls = ["https://www.selinawamucii.com/insights/prices/canada/pork/"];
+    const results = await openMultipleTabs(browser, urls);
 
-const results = await openMultipleTabs(urls, true);
-console.log(results);
-// "https://www.ontariopork.on.ca/Price-Report",
+    console.log(results);
+  } finally {
+    await browser.close(); // Ensure the browser is closed after processing
+  }
+})();
