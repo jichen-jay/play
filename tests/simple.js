@@ -4,6 +4,17 @@ import TurndownService from "https://cdn.jsdelivr.net/npm/turndown@7.2.0/+esm";
 import { JSDOM } from "npm:jsdom";
 import puppeteer from "https://deno.land/x/puppeteer_plus/mod.ts";
 import { NodeHtmlMarkdown } from "npm:node-html-markdown";
+
+import markdownit from "npm:markdown-it";
+
+const md = markdownit({
+  html: true, // Enable HTML tags in source
+  xhtmlOut: true,
+  breaks: true,
+  linkify: true,
+  typographer: true,
+}).disable(["image"]);
+
 let browser;
 let defaultContext;
 
@@ -91,21 +102,22 @@ async function openMultipleTabs(urls, toMd) {
         //   console.error(`Error processing ${url}:`, err);
         //   return { url, content: null, error: err.message };
         // }
-        const turndownService = new TurndownService();
+        // const turndownService = new TurndownService();
 
-        turndownService.addRule("strikethrough", {
-          filter: ["path", "meta", "picture"],
-          replacement: function (content) {
-            return "~" + content + "~";
-          },
-        });
+        // turndownService.addRule("strikethrough", {
+        //   filter: ["path", "meta", "picture"],
+        //   replacement: function (content) {
+        //     return "~" + content + "~";
+        //   },
+        // });
 
-        const dom = new JSDOM(htm);
+        // const dom = new JSDOM(htm);
 
-        const cleaned = turndownService.turndown(
-          dom.window.document.body.innerHTML
-        );
+        // const cleaned = turndownService.turndown(
+        //   dom.window.document.body.innerHTML
+        // );
 
+        const cleaned = md.render(htm);
         // console.log("Readability_with_link_sections:\n\n");
         console.log(cleaned);
 
@@ -131,9 +143,7 @@ async function openMultipleTabs(urls, toMd) {
 
 await initializeBrowser();
 
-const urls = [
-  "https://agriculture.canada.ca/en/sector/animal-industry/red-meat-and-livestock-market-information/prices",
-];
+const urls = ["https://www.selinawamucii.com/insights/prices/canada/pork/"];
 
 const results = await openMultipleTabs(urls, true);
 console.log(results);
