@@ -1,11 +1,7 @@
 import { Readability } from "https://cdn.jsdelivr.net/npm/@mozilla/readability@0.5.0/+esm";
 import { JSDOM } from "npm:jsdom";
-import puppeteer from "npm:puppeteer-extra";
-// import puppeteer from "https://deno.land/x/puppeteer_plus/mod.ts";
+import puppeteer from "https://deno.land/x/puppeteer_plus/mod.ts";
 import { NodeHtmlMarkdown } from "npm:node-html-markdown";
-import StealthPlugin from "npm:puppeteer-extra-plugin-stealth";
-
-puppeteer.use(StealthPlugin());
 
 const customTranslators = {
   path: (node) => `~${node.textContent}~`,
@@ -15,23 +11,19 @@ const customTranslators = {
 
 async function initializeBrowser() {
   try {
-    const browser = await puppeteer.connect({
-      browserURL: "http://localhost:9222", // URL where Chrome is listening for remote debugging
-      defaultViewport: null, // Optional: Set default viewport size or null for no default
+    const browser = await puppeteer.launch({
+      headless: false, // Use headless mode for better performance
+      executablePath: "/usr/bin/google-chrome",
+      args: [
+        `--user-data-dir=/home/jaykchen/.config/google-chrome`,
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--disable-dev-shm-usage",
+        "--disable-accelerated-2d-canvas",
+        "--disable-gpu",
+        "--window-size=1920x1080",
+      ],
     });
-    // const browser = await puppeteer.launch({
-    //   headless: false, // Use headless mode for better performance
-    //   executablePath: "/usr/bin/google-chrome",
-    //   args: [
-    //     `--user-data-dir=/home/jaykchen/.config/google-chrome`,
-    //     "--no-sandbox",
-    //     "--disable-setuid-sandbox",
-    //     "--disable-dev-shm-usage",
-    //     "--disable-accelerated-2d-canvas",
-    //     "--disable-gpu",
-    //     "--window-size=1920x1080",
-    //   ],
-    // });
     console.log("Connected to the browser.");
     return browser;
   } catch (error) {
@@ -116,8 +108,7 @@ async function openMultipleTabs(browser, urls) {
   const browser = await initializeBrowser();
 
   try {
-    // const urls = ["https://www.nytimes.com/account/settings"];
-    const urls = ["https://www.scmp.com/"];
+    const urls = ["https://www.theverge.com/"];
     const results = await openMultipleTabs(browser, urls);
 
     console.log(results);
